@@ -62,14 +62,18 @@ module.exports = function(videojs) {
          this._eventListeners = [];
 
          this.videojsPlayer = this.videojs(options.playerId);
+
+         // On SPA's if chromecast is already casting when the page changes,
+         // on the next page chromecast tech is available (canPlaySource returns true)
+         // which causes videojs to construct chromecast Tech class before
+         // player.chromecast() is called, which we depend on to create
+         // ChromecastSessionManager & assign it to the player
+         if (!this.videojsPlayer.chromecastSessionManager) {
+            this.videojsPlayer.chromecastSessionManager = new ChromecastSessionManager(this.videojsPlayer);
+         }
          this._chromecastSessionManager = this.videojsPlayer.chromecastSessionManager;
 
          this._ui.updatePoster(this.videojsPlayer.poster());
-
-         this._remotePlayer = this._chromecastSessionManager.getRemotePlayer();
-         this._remotePlayerController = this._chromecastSessionManager.getRemotePlayerController();
-         this._listenToPlayerControllerEvents();
-         this.on('dispose', this._removeAllEventListeners.bind(this));
 
          this._hasPlayedAnyItem = false;
          this._requestTitle = options.requestTitleFn || function() { /* noop */ };
@@ -171,6 +175,16 @@ module.exports = function(videojs) {
          this._playSource(source, 0);
       }
 
+      setupPlayerController() {
+         this._chromecastSessionManager.setupPlayerController();
+         this._remotePlayer = this._chromecastSessionManager.getRemotePlayer();
+         this._remotePlayerController = this._chromecastSessionManager.getRemotePlayerController();
+         this._listenToPlayerControllerEvents();
+         this.on('dispose', () => {
+            this._removeAllEventListeners();
+         });
+      }
+
       /**
        * Plays the given source, beginning at an optional starting time.
        *
@@ -219,6 +233,10 @@ module.exports = function(videojs) {
          castSession.loadMedia(request)
             .then(function() {
                this._clearSessionTimeout();
+               // Creating remotePlayerController after media is loaded
+               // fixes the unresponsive controller when media changes
+               this.setupPlayerController();
+
                if (!this._hasPlayedAnyItem) {
                   // `triggerReady` is required here to notify the Video.js
                   // player that the Tech has been initialized and is ready.

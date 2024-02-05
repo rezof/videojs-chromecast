@@ -12,19 +12,6 @@ class ChromecastSessionManager {
     * [CastContext](https://developers.google.com/cast/docs/reference/chrome/cast.framework.CastContext)
     * has been configured.
     *
-    * For an undocumented (and thus unknown) reason, RemotePlayer and
-    * RemotePlayerController instances created before the cast context has been configured
-    * or after requesting a session or loading media will not stay in sync with media
-    * items that are loaded later.
-    *
-    * For example, the first item that you cast will work as expected: events on
-    * RemotePlayerController will fire and the state (currentTime, duration, etc) of the
-    * RemotePlayer instance will update as the media item plays. However, if a new media
-    * item is loaded via a `loadMedia` request, the media item will play, but the
-    * remotePlayer will be in a "media unloaded" state where the duration is 0, the
-    * currentTime does not update, and no change events are fired (except, strangely,
-    * displayStatus updates).
-    *
     * @param player {object} Video.js Player
     * @constructs ChromecastSessionManager
     */
@@ -38,15 +25,35 @@ class ChromecastSessionManager {
 
       // Remove global event listeners when this player instance is destroyed to prevent
       // memory leaks.
-      this.player.on('dispose', this._removeCastContextEventListeners.bind(this));
+      this.player.on('dispose', () => {
+         this._removeCastContextEventListeners();
+         this._cleanUpPlayerController();
+      });
 
       this._notifyPlayerOfDevicesAvailabilityChange(this.getCastContext().getCastState());
+   }
 
+   static hasConnected = false;
+
+   /**
+    * Used by ChromecastTech to setup remotePlayerController after media is loaded.
+    *
+    * */
+   setupPlayerController() {
       this.remotePlayer = new cast.framework.RemotePlayer();
       this.remotePlayerController = new cast.framework.RemotePlayerController(this.remotePlayer);
    }
 
-   static hasConnected = false;
+   /**
+    * Clean up references since we create a RemotePlayer & RemotePlayerController
+    * for each media
+    *
+    * @private
+    */
+   _cleanUpPlayerController() {
+      this.remotePlayer = null;
+      this.remotePlayerController = null;
+   }
 
    /**
     * Add event listeners for events triggered on the current CastContext.
