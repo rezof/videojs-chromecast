@@ -107,7 +107,13 @@ module.exports = function(videojs) {
        * @see {@link http://docs.videojs.com/Button.html#handleClick|Button#handleClick}
        */
       handleClick() {
-         this.player().trigger('chromecastRequested');
+	if (
+          this.options_ &&
+          typeof this.options_.canCast === 'function' &&
+          this.options_.canCast()
+        ) {
+          this.player().trigger('chromecastRequested');
+        }
       }
 
       /**
